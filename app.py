@@ -43,6 +43,10 @@ def obter_previsao(provincia):
     response = requests.get(url)
     data = response.json()
     
+    # Verificando se a chave 'list' existe na resposta antes de tentar acessar
+    if 'list' not in data:
+        return None
+    
     previsao = []
     for item in data['list'][:5]:  # Pegando os próximos 5 dias
         dia = item['dt_txt']
@@ -143,14 +147,19 @@ else:
     previsao1 = obter_previsao(provincia1)
     previsao2 = obter_previsao(provincia2)
 
-    # Exibir previsão de clima para os próximos dias
-    st.subheader(f"Previsão para os próximos dias em {provincia1}:")
-    for dia, temp, descricao in previsao1:
-        st.write(f"{dia}: {temp}°C - {descricao}")
+    if previsao1:
+        st.subheader(f"Previsão de clima para os próximos 5 dias em {provincia1}")
+        for dia, temp, descricao in previsao1:
+            st.write(f"{dia}: {temp}°C - {descricao}")
+    else:
+        st.write(f"Não foi possível obter a previsão para {provincia1}")
 
-    st.subheader(f"Previsão para os próximos dias em {provincia2}:")
-    for dia, temp, descricao in previsao2:
-        st.write(f"{dia}: {temp}°C - {descricao}")
+    if previsao2:
+        st.subheader(f"Previsão de clima para os próximos 5 dias em {provincia2}")
+        for dia, temp, descricao in previsao2:
+            st.write(f"{dia}: {temp}°C - {descricao}")
+    else:
+        st.write(f"Não foi possível obter a previsão para {provincia2}")
 
     # Criar o mapa com a rota entre as províncias
     m = criar_mapa(lat1, lon1, lat2, lon2, provincia1, provincia2)
@@ -158,20 +167,3 @@ else:
     # Exibir o mapa no Streamlit
     st.subheader("Rota entre as províncias:")
     st.components.v1.html(m._repr_html_(), height=500)
-
-    # Adicionar gráfico comparativo de temperatura
-    if clima1 and clima2:
-        fig, ax = plt.subplots()
-        ax.bar([provincia1, provincia2], [clima1[0], clima2[0]], color=['blue', 'orange'])
-        ax.set_ylabel('Temperatura (°C)')
-        ax.set_title(f"Comparação de Temperatura entre {provincia1} e {provincia2}")
-        st.pyplot(fig)
-
-    # Adicionar gráfico comparativo de umidade
-    if clima1 and clima2:
-        fig, ax = plt.subplots()
-        ax.bar([provincia1, provincia2], [clima1[2], clima2[2]], color=['blue', 'orange'])
-        ax.set_ylabel('Umidade (%)')
-        ax.set_title(f"Comparação de Umidade entre {provincia1} e {provincia2}")
-        st.pyplot(fig)
-
