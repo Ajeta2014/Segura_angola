@@ -154,3 +154,21 @@ else:
             st.write(f"{dia}: {temp}°C - {descricao}")
     else:
         st.write(f"Não foi possível obter a previsão para {
+    else:
+        st.write(f"Não foi possível obter a previsão para {provincia1}")
+
+    if previsao2:
+        st.subheader(f"Previsão de clima para os próximos 5 dias em {provincia2}")
+        for dia, temp, descricao in previsao2:
+            st.write(f"{dia}: {temp}°C - {descricao}")
+    else:
+        st.write(f"Não foi possível obter a previsão para {provincia2}")
+
+    # Criar o mapa com a rota entre as províncias
+    m = criar_mapa(lat1, lon1, lat2, lon2, provincia1, provincia2)
+
+    # Exibir o mapa no Streamlit
+    st.subheader("Rota entre as províncias:")
+    st.components.v1.html(m._repr_html_(), height=500)
+
+}
