@@ -1,4 +1,5 @@
 streamlit
-folium
+matplotlib
 requests
+folium
 geopy
