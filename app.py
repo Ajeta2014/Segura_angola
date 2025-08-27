@@ -1,12 +1,12 @@
-
 import streamlit as st
 import math
 import requests
 import folium
-from geopy.distance import geodesic
 import matplotlib.pyplot as plt
+from geopy.distance import geodesic
 
 # Função de Haversine para calcular a distância em quilômetros
+@st.cache_data  # Cache para otimizar a execução de cálculos repetidos
 def haversine(lat1, lon1, lat2, lon2):
     R = 6371  # Raio da Terra em km
     lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])  # Convertendo de graus para radianos
@@ -21,7 +21,7 @@ def haversine(lat1, lon1, lat2, lon2):
     return R * c
 
 # Função para pegar clima da API OpenWeatherMap
-@st.cache  # Cache para não realizar chamadas repetidas à API
+@st.cache_data  # Cache para não realizar chamadas repetidas à API
 def obter_clima(provincia):
     api_key = "eca1cf11f4133927c8483a28e4ae7a6d"  # Substitua com a sua chave da OpenWeatherMap
     url = f"http://api.openweathermap.org/data/2.5/weather?q={provincia},AO&appid={api_key}&units=metric"
@@ -131,4 +131,3 @@ else:
         ax.bar([provincia1, provincia2], [clima1[0], clima2[0]], color=['blue', 'orange'])
         ax.set_ylabel('Temperatura (°C)')
         ax.set_title(f"Comparação de Temperatura entre {provincia1} e {provincia2}")
-        st.pyplot(fig)
