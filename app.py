@@ -153,8 +153,6 @@ else:
         for dia, temp, descricao in previsao1:
             st.write(f"{dia}: {temp}°C - {descricao}")
     else:
-        st.write(f"Não foi possível obter a previsão para {
-    else:
         st.write(f"Não foi possível obter a previsão para {provincia1}")
 
     if previsao2:
@@ -171,4 +169,3 @@ else:
     st.subheader("Rota entre as províncias:")
     st.components.v1.html(m._repr_html_(), height=500)
 
-}
