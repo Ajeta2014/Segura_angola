@@ -85,7 +85,7 @@ provincas = {
     "Bie": {"lat": -12.575, "lon": 17.712},
     "Kwanza": {"lat": -9.560, "lon": 14.145},
     "Cuando Cubango": {"lat": -15.393, "lon": 18.518},
-    "Cunene": {"lat": -17.130, "lon": 14.896},
+    "Ondjiva": {"lat": -17.130, "lon": 14.896},
 }
 
 # Início do aplicativo Streamlit
