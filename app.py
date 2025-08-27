@@ -3,6 +3,8 @@ import math
 import requests
 import folium
 import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
+import random
 
 # Função de Haversine para calcular a distância em quilômetros
 def haversine(lat1, lon1, lat2, lon2):
@@ -19,7 +21,7 @@ def haversine(lat1, lon1, lat2, lon2):
     return R * c
 
 # Função para pegar clima da API OpenWeatherMap
-@st.cache_data  # Usando o novo caching para dados
+@st.cache_data
 def obter_clima(provincia):
     api_key = "eca1cf11f4133927c8483a28e4ae7a6d"  # Substitua com a sua chave da OpenWeatherMap
     url = f"http://api.openweathermap.org/data/2.5/weather?q={provincia},AO&appid={api_key}&units=metric"
@@ -35,35 +37,56 @@ def obter_clima(provincia):
     clima_icon = f"http://openweathermap.org/img/wn/{data['weather'][0]['icon']}.png"  # Icon do clima
     return temperatura, clima, umidade, vento, clima_icon
 
-# Função para obter previsão de clima para os próximos dias
-@st.cache_data  # Cache da previsão para não fazer chamadas repetitivas
-def obter_previsao(provincia):
-    api_key = "eca1cf11f4133927c8483a28e4ae7a6d"
-    url = f"http://api.openweathermap.org/data/2.5/forecast?q={provincia},AO&appid={api_key}&units=metric"
-    response = requests.get(url)
-    data = response.json()
-    
-    # Verificando se a chave 'list' existe na resposta antes de tentar acessar
-    if 'list' not in data:
-        return None
-    
-    previsao = []
-    for item in data['list'][:5]:  # Pegando os próximos 5 dias
-        dia = item['dt_txt']
-        temperatura = item['main']['temp']
-        descricao = item['weather'][0]['description']
-        previsao.append((dia, temperatura, descricao))
-    
-    return previsao
-
 # Função para criar o mapa interativo
-@st.cache_data  # Cache para o mapa
+@st.cache_data
 def criar_mapa(lat1, lon1, lat2, lon2, provincia1, provincia2):
     m = folium.Map(location=[lat1, lon1], zoom_start=6)
     folium.Marker([lat1, lon1], popup=provincia1, icon=folium.Icon(color='blue')).add_to(m)
     folium.Marker([lat2, lon2], popup=provincia2, icon=folium.Icon(color='red')).add_to(m)
     folium.PolyLine([(lat1, lon1), (lat2, lon2)], color="green", weight=2.5, opacity=1).add_to(m)
     return m
+
+# Simulação de um banco de dados para eventos
+eventos_reportados = []
+
+# Função para reportar um evento
+def reportar_evento(tipo, provincia, descricao):
+    evento = {
+        'id': random.randint(1000, 9999),
+        'tipo': tipo,
+        'provincia': provincia,
+        'descricao': descricao,
+        'data': datetime.now(),
+        'resolvido': False,
+    }
+    eventos_reportados.append(evento)
+    st.success(f"Evento {tipo} reportado com sucesso!")
+
+# Função para exibir eventos
+def exibir_eventos():
+    for evento in eventos_reportados:
+        if not evento['resolvido']:
+            st.write(f"**{evento['tipo']}** em {evento['provincia']}")
+            st.write(f"Descrição: {evento['descricao']}")
+            st.write(f"Data do evento: {evento['data'].strftime('%d/%m/%Y %H:%M')}")
+            st.write("----")
+
+# Função para resolver um evento
+def resolver_evento(id_evento, senha_admin):
+    if senha_admin == "admin123":  # Palavra-passe para resolver
+        for evento in eventos_reportados:
+            if evento['id'] == id_evento:
+                evento['resolvido'] = True
+                st.success(f"Evento {id_evento} resolvido com sucesso!")
+                break
+    else:
+        st.error("Senha incorreta! Não é possível resolver o evento.")
+
+# Exibição de eventos expirados
+def remover_eventos_expirados():
+    global eventos_reportados
+    agora = datetime.now()
+    eventos_reportados = [evento for evento in eventos_reportados if agora - evento['data'] < timedelta(hours=72)]
 
 # Dicionário de coordenadas das províncias de Angola
 provincas = {
@@ -91,79 +114,30 @@ provincas = {
 # Início do aplicativo Streamlit
 st.title("Cálculo de Distâncias e Clima em Angola")
 
-# Escolha das províncias (usando colunas para tornar a interface mais organizada)
-col1, col2 = st.columns(2)
-with col1:
-    provincia1 = st.selectbox("Escolha a primeira província", list(provincas.keys()))
-with col2:
-    provincia2 = st.selectbox("Escolha a segunda província", list(provincas.keys()))
+# Painel de relatórios
+st.sidebar.header("Relatar Evento")
+evento_tipo = st.sidebar.selectbox("Tipo de evento", ["Acidente", "Buraco", "Congestionamento", "Outro"])
+evento_provincia = st.sidebar.selectbox("Escolha a província", list(provincas.keys()))
+evento_descricao = st.sidebar.text_area("Descrição do evento", "")
 
-# Validação: Não pode escolher a mesma província
-if provincia1 == provincia2:
-    st.error("Por favor, selecione duas províncias diferentes.")
-else:
-    # Coordenadas das províncias
-    lat1, lon1 = provincas[provincia1]["lat"], provincas[provincia1]["lon"]
-    lat2, lon2 = provincas[provincia2]["lat"], provincas[provincia2]["lon"]
-
-    # Calcular distância
-    distancia = haversine(lat1, lon1, lat2, lon2)
-
-    # Exibir distância
-    st.write(f"A distância entre {provincia1} e {provincia2} é {distancia:.2f} km.")
-
-    # Estimativa de tempo de viagem (considerando uma velocidade média de 80 km/h)
-    tempo_estimado = distancia / 80
-    horas = int(tempo_estimado)
-    minutos = int((tempo_estimado - horas) * 60)
-    st.write(f"Tempo estimado de viagem: {horas} horas e {minutos} minutos.")
-
-    # Obter as condições climáticas para as províncias
-    clima1 = obter_clima(provincia1)
-    clima2 = obter_clima(provincia2)
-
-    # Exibir clima de cada província
-    if clima1:
-        st.subheader(f"Clima atual em {provincia1}")
-        st.write(f"Temperatura: {clima1[0]}°C")
-        st.write(f"Clima: {clima1[1]}")
-        st.write(f"Umidade: {clima1[2]}%")
-        st.write(f"Velocidade do vento: {clima1[3]} m/s")
-        st.image(clima1[4], width=50)  # Exibir o ícone do clima
+if st.sidebar.button("Reportar Evento"):
+    if evento_descricao:
+        reportar_evento(evento_tipo, evento_provincia, evento_descricao)
     else:
-        st.write(f"Não foi possível obter as condições climáticas para {provincia1}")
+        st.error("Por favor, insira uma descrição para o evento.")
 
-    if clima2:
-        st.subheader(f"Clima atual em {provincia2}")
-        st.write(f"Temperatura: {clima2[0]}°C")
-        st.write(f"Clima: {clima2[1]}")
-        st.write(f"Umidade: {clima2[2]}%")
-        st.write(f"Velocidade do vento: {clima2[3]} m/s")
-        st.image(clima2[4], width=50)  # Exibir o ícone do clima
-    else:
-        st.write(f"Não foi possível obter as condições climáticas para {provincia2}")
+# Painel Administrativo
+st.sidebar.header("Administração")
+senha_admin = st.sidebar.text_input("Senha Administrador", type="password")
+id_evento_resolver = st.sidebar.number_input("ID do Evento para Resolver", min_value=1000, max_value=9999, step=1)
+if st.sidebar.button("Resolver Evento"):
+    resolver_evento(id_evento_resolver, senha_admin)
 
-    # Obter previsões para os próximos 5 dias
-    previsao1 = obter_previsao(provincia1)
-    previsao2 = obter_previsao(provincia2)
+# Remover eventos expirados (após 72 horas)
+remover_eventos_expirados()
 
-    if previsao1:
-        st.subheader(f"Previsão de clima para os próximos 5 dias em {provincia1}")
-        for dia, temp, descricao in previsao1:
-            st.write(f"{dia}: {temp}°C - {descricao}")
-    else:
-        st.write(f"Não foi possível obter a previsão para {provincia1}")
+# Exibir eventos reportados
+st.subheader("Eventos Reportados")
+exibir_eventos()
 
-    if previsao2:
-        st.subheader(f"Previsão de clima para os próximos 5 dias em {provincia2}")
-        for dia, temp, descricao in previsao2:
-            st.write(f"{dia}: {temp}°C - {descricao}")
-    else:
-        st.write(f"Não foi possível obter a previsão para {provincia2}")
-
-    # Criar o mapa com a rota entre as províncias
-    m = criar_mapa(lat1, lon1, lat2, lon2, provincia1, provincia2)
-
-    # Exibir o mapa no Streamlit
-    st.subheader("Rota entre as províncias:")
-    st.components.v1.html(m._repr_html_(), height=500)
+# O resto do seu código original...
