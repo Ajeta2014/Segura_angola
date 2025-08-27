@@ -2,7 +2,6 @@ import streamlit as st
 import math
 import requests
 import folium
-import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import random
 
@@ -36,6 +35,27 @@ def obter_clima(provincia):
     vento = data['wind']['speed']
     clima_icon = f"http://openweathermap.org/img/wn/{data['weather'][0]['icon']}.png"  # Icon do clima
     return temperatura, clima, umidade, vento, clima_icon
+
+# Função para obter previsão de clima para os próximos dias
+@st.cache_data
+def obter_previsao(provincia):
+    api_key = "eca1cf11f4133927c8483a28e4ae7a6d"
+    url = f"http://api.openweathermap.org/data/2.5/forecast?q={provincia},AO&appid={api_key}&units=metric"
+    response = requests.get(url)
+    data = response.json()
+
+    # Verificando se a chave 'list' existe na resposta antes de tentar acessar
+    if 'list' not in data:
+        return None
+    
+    previsao = []
+    for item in data['list'][:5]:  # Pegando os próximos 5 dias
+        dia = item['dt_txt']
+        temperatura = item['main']['temp']
+        descricao = item['weather'][0]['description']
+        previsao.append((dia, temperatura, descricao))
+    
+    return previsao
 
 # Função para criar o mapa interativo
 @st.cache_data
@@ -82,7 +102,7 @@ def resolver_evento(id_evento, senha_admin):
     else:
         st.error("Senha incorreta! Não é possível resolver o evento.")
 
-# Exibição de eventos expirados
+# Remover eventos expirados (após 72 horas)
 def remover_eventos_expirados():
     global eventos_reportados
     agora = datetime.now()
@@ -114,33 +134,6 @@ provincas = {
 # Início do aplicativo Streamlit
 st.title("Cálculo de Distâncias e Clima em Angola")
 
-# Painel de relatórios
-st.sidebar.header("Relatar Evento")
-evento_tipo = st.sidebar.selectbox("Tipo de evento", ["Acidente", "Buraco", "Congestionamento", "Outro"])
-evento_provincia = st.sidebar.selectbox("Escolha a província", list(provincas.keys()))
-evento_descricao = st.sidebar.text_area("Descrição do evento", "")
-
-if st.sidebar.button("Reportar Evento"):
-    if evento_descricao:
-        reportar_evento(evento_tipo, evento_provincia, evento_descricao)
-    else:
-        st.error("Por favor, insira uma descrição para o evento.")
-
-# Painel Administrativo
-st.sidebar.header("Administração")
-senha_admin = st.sidebar.text_input("Senha Administrador", type="password")
-id_evento_resolver = st.sidebar.number_input("ID do Evento para Resolver", min_value=1000, max_value=9999, step=1)
-if st.sidebar.button("Resolver Evento"):
-    resolver_evento(id_evento_resolver, senha_admin)
-
-# Remover eventos expirados (após 72 horas)
-remover_eventos_expirados()
-
-# Exibir eventos reportados
-st.subheader("Eventos Reportados")
-exibir_eventos()
-
-# O resto do seu código original...
 # Escolha das províncias (usando colunas para tornar a interface mais organizada)
 col1, col2 = st.columns(2)
 with col1:
@@ -217,3 +210,19 @@ else:
     # Exibir o mapa no Streamlit
     st.subheader("Rota entre as províncias:")
     st.components.v1.html(m._repr_html_(), height=500)
+
+    # Reportar eventos
+    st.sidebar.title("Reportar Evento")
+    tipo_evento = st.sidebar.selectbox("Tipo de evento", ["Acidente", "Buraco", "Congestionamento"])
+    provincia_evento = st.sidebar.selectbox("Província", list(provincas.keys()))
+    descricao_evento = st.sidebar.text_area("Descrição do evento")
+    if st.sidebar.button("Reportar"):
+        reportar_evento(tipo_evento, provincia_evento, descricao_evento)
+
+    # Mostrar eventos não resolvidos
+    st.sidebar.title("Eventos Reportados")
+    exibir_eventos()
+
+    # Remover eventos expirados
+    remover_eventos_expirados()
+
