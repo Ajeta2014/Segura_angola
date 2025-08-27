@@ -3,10 +3,8 @@ import math
 import requests
 import folium
 import matplotlib.pyplot as plt
-from geopy.distance import geodesic
 
 # Função de Haversine para calcular a distância em quilômetros
-@st.cache_data  # Cache para otimizar a execução de cálculos repetidos
 def haversine(lat1, lon1, lat2, lon2):
     R = 6371  # Raio da Terra em km
     lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])  # Convertendo de graus para radianos
@@ -21,7 +19,7 @@ def haversine(lat1, lon1, lat2, lon2):
     return R * c
 
 # Função para pegar clima da API OpenWeatherMap
-@st.cache_data  # Cache para não realizar chamadas repetidas à API
+@st.cache_data  # Usando o novo caching para dados
 def obter_clima(provincia):
     api_key = "eca1cf11f4133927c8483a28e4ae7a6d"  # Substitua com a sua chave da OpenWeatherMap
     url = f"http://api.openweathermap.org/data/2.5/weather?q={provincia},AO&appid={api_key}&units=metric"
@@ -34,7 +32,34 @@ def obter_clima(provincia):
     temperatura = data['main']['temp']
     umidade = data['main']['humidity']
     vento = data['wind']['speed']
-    return temperatura, clima, umidade, vento
+    clima_icon = f"http://openweathermap.org/img/wn/{data['weather'][0]['icon']}.png"  # Icon do clima
+    return temperatura, clima, umidade, vento, clima_icon
+
+# Função para obter previsão de clima para os próximos dias
+@st.cache_data  # Cache da previsão para não fazer chamadas repetitivas
+def obter_previsao(provincia):
+    api_key = "eca1cf11f4133927c8483a28e4ae7a6d"
+    url = f"http://api.openweathermap.org/data/2.5/forecast?q={provincia},AO&appid={api_key}&units=metric"
+    response = requests.get(url)
+    data = response.json()
+    
+    previsao = []
+    for item in data['list'][:5]:  # Pegando os próximos 5 dias
+        dia = item['dt_txt']
+        temperatura = item['main']['temp']
+        descricao = item['weather'][0]['description']
+        previsao.append((dia, temperatura, descricao))
+    
+    return previsao
+
+# Função para criar o mapa interativo
+@st.cache_data  # Cache para o mapa
+def criar_mapa(lat1, lon1, lat2, lon2, provincia1, provincia2):
+    m = folium.Map(location=[lat1, lon1], zoom_start=6)
+    folium.Marker([lat1, lon1], popup=provincia1, icon=folium.Icon(color='blue')).add_to(m)
+    folium.Marker([lat2, lon2], popup=provincia2, icon=folium.Icon(color='red')).add_to(m)
+    folium.PolyLine([(lat1, lon1), (lat2, lon2)], color="green", weight=2.5, opacity=1).add_to(m)
+    return m
 
 # Dicionário de coordenadas das províncias de Angola
 provincas = {
@@ -72,7 +97,6 @@ with col2:
 # Validação: Não pode escolher a mesma província
 if provincia1 == provincia2:
     st.error("Por favor, selecione duas províncias diferentes.")
-
 else:
     # Coordenadas das províncias
     lat1, lon1 = provincas[provincia1]["lat"], provincas[provincia1]["lon"]
@@ -101,6 +125,7 @@ else:
         st.write(f"Clima: {clima1[1]}")
         st.write(f"Umidade: {clima1[2]}%")
         st.write(f"Velocidade do vento: {clima1[3]} m/s")
+        st.image(clima1[4], width=50)  # Exibir o ícone do clima
     else:
         st.write(f"Não foi possível obter as condições climáticas para {provincia1}")
 
@@ -110,24 +135,43 @@ else:
         st.write(f"Clima: {clima2[1]}")
         st.write(f"Umidade: {clima2[2]}%")
         st.write(f"Velocidade do vento: {clima2[3]} m/s")
+        st.image(clima2[4], width=50)  # Exibir o ícone do clima
     else:
         st.write(f"Não foi possível obter as condições climáticas para {provincia2}")
 
-    # Criar o mapa com a rota entre as províncias
-    m = folium.Map(location=[lat1, lon1], zoom_start=6)
+    # Obter previsões para os próximos 5 dias
+    previsao1 = obter_previsao(provincia1)
+    previsao2 = obter_previsao(provincia2)
 
-    # Adicionar as províncias ao mapa
-    folium.Marker([lat1, lon1], popup=provincia1, icon=folium.Icon(color='blue')).add_to(m)
-    folium.Marker([lat2, lon2], popup=provincia2, icon=folium.Icon(color='red')).add_to(m)
-    folium.PolyLine([(lat1, lon1), (lat2, lon2)], color="green", weight=2.5, opacity=1).add_to(m)
+    # Exibir previsão de clima para os próximos dias
+    st.subheader(f"Previsão para os próximos dias em {provincia1}:")
+    for dia, temp, descricao in previsao1:
+        st.write(f"{dia}: {temp}°C - {descricao}")
+
+    st.subheader(f"Previsão para os próximos dias em {provincia2}:")
+    for dia, temp, descricao in previsao2:
+        st.write(f"{dia}: {temp}°C - {descricao}")
+
+    # Criar o mapa com a rota entre as províncias
+    m = criar_mapa(lat1, lon1, lat2, lon2, provincia1, provincia2)
 
     # Exibir o mapa no Streamlit
     st.subheader("Rota entre as províncias:")
     st.components.v1.html(m._repr_html_(), height=500)
 
-    # Adicionar gráfico comparativo de temperatura (se as duas províncias tiverem clima)
+    # Adicionar gráfico comparativo de temperatura
     if clima1 and clima2:
         fig, ax = plt.subplots()
         ax.bar([provincia1, provincia2], [clima1[0], clima2[0]], color=['blue', 'orange'])
         ax.set_ylabel('Temperatura (°C)')
         ax.set_title(f"Comparação de Temperatura entre {provincia1} e {provincia2}")
+        st.pyplot(fig)
+
+    # Adicionar gráfico comparativo de umidade
+    if clima1 and clima2:
+        fig, ax = plt.subplots()
+        ax.bar([provincia1, provincia2], [clima1[2], clima2[2]], color=['blue', 'orange'])
+        ax.set_ylabel('Umidade (%)')
+        ax.set_title(f"Comparação de Umidade entre {provincia1} e {provincia2}")
+        st.pyplot(fig)
+
