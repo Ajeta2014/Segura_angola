@@ -1,5 +1,8 @@
 import streamlit as st
 import math
+import requests
+import folium
+from geopy.distance import geodesic
 
 # Função de Haversine para calcular a distância em quilômetros
 def haversine(lat1, lon1, lat2, lon2):
@@ -14,6 +17,17 @@ def haversine(lat1, lon1, lat2, lon2):
 
     # Distância em km
     return R * c
+
+# Função para pegar clima da API OpenWeatherMap
+def obter_clima(provincia):
+    api_key = "eca1cf11f4133927c8483a28e4ae7a6d"  # Substitua com a sua chave da OpenWeatherMap
+    url = f"http://api.openweathermap.org/data/2.5/weather?q={provincia},AO&appid={api_key}&units=metric"
+    response = requests.get(url)
+    data = response.json()
+
+    if data.get("cod") != 200:
+        return None
+    return data['main']['temp'], data['weather'][0]['description']
 
 # Dicionário de coordenadas das províncias de Angola
 provincas = {
@@ -36,16 +50,10 @@ provincas = {
     "Kwanza": {"lat": -9.560, "lon": 14.145},
     "Cuando Cubango": {"lat": -15.393, "lon": 18.518},
     "Cunene": {"lat": -17.130, "lon": 14.896},
-    "Cuanza Sul": {"lat": -11.452, "lon": 14.288},
 }
 
-# Função para pegar clima (dados fictícios ou de um banco de dados)
-def obter_clima(provincia):
-    # Aqui você pode integrar com um banco de dados de clima
-    return "Clima: Ensolarado, Temperatura: 28°C"
-
 # Início do aplicativo Streamlit
-st.title("Cálculo de Distâncias Interprovinciais de Angola e Clima")
+st.title("Cálculo de Distâncias e Clima em Angola")
 
 # Escolha das províncias
 provincia1 = st.selectbox("Escolha a primeira província", list(provincas.keys()))
@@ -61,7 +69,36 @@ distancia = haversine(lat1, lon1, lat2, lon2)
 # Mostrar a distância
 st.write(f"A distância entre {provincia1} e {provincia2} é {distancia:.2f} km.")
 
-# Mostrar clima (dados fictícios por enquanto)
-clima = obter_clima(provincia1)
-st.write(f"O clima atual em {provincia1}: {clima}")
+# Estimativa de tempo de viagem (considerando uma velocidade média de 80 km/h)
+tempo_estimado = distancia / 80
+st.write(f"Tempo estimado de viagem: {tempo_estimado:.2f} horas.")
 
+# Obter as condições climáticas para as províncias
+clima1 = obter_clima(provincia1)
+clima2 = obter_clima(provincia2)
+
+if clima1:
+    st.subheader(f"Clima atual em {provincia1}")
+    st.write(f"Temperatura: {clima1[0]}°C")
+    st.write(f"Clima: {clima1[1]}")
+else:
+    st.write(f"Não foi possível obter as condições climáticas para {provincia1}")
+
+if clima2:
+    st.subheader(f"Clima atual em {provincia2}")
+    st.write(f"Temperatura: {clima2[0]}°C")
+    st.write(f"Clima: {clima2[1]}")
+else:
+    st.write(f"Não foi possível obter as condições climáticas para {provincia2}")
+
+# Criar o mapa com a rota entre as províncias
+m = folium.Map(location=[lat1, lon1], zoom_start=6)
+
+# Adicionar as províncias ao mapa
+folium.Marker([lat1, lon1], popup=provincia1, icon=folium.Icon(color='blue')).add_to(m)
+folium.Marker([lat2, lon2], popup=provincia2, icon=folium.Icon(color='red')).add_to(m)
+folium.PolyLine([(lat1, lon1), (lat2, lon2)], color="green", weight=2.5, opacity=1).add_to(m)
+
+# Mostrar o mapa no Streamlit
+st.subheader("Rota entre as províncias:")
+st.components.v1.html(m._repr_html_(), height=500)
