@@ -66,44 +66,6 @@ def criar_mapa(lat1, lon1, lat2, lon2, provincia1, provincia2):
     folium.PolyLine([(lat1, lon1), (lat2, lon2)], color="green", weight=2.5, opacity=1).add_to(m)
     return m
 
-# Simulação de um banco de dados para eventos
-eventos_reportados = []
-
-# Função para reportar um evento
-def reportar_evento(tipo, provincia, descricao):
-    evento = {
-        'id': random.randint(1000, 9999),
-        'tipo': tipo,
-        'provincia': provincia,
-        'descricao': descricao,
-        'data': datetime.now(),
-        'resolvido': False,
-    }
-    eventos_reportados.append(evento)
-    st.success(f"Evento {tipo} reportado com sucesso!")
-
-# Função para exibir eventos
-def exibir_eventos():
-    agora = datetime.now()
-    for evento in eventos_reportados:
-        # Verificar se o evento não expirou antes de exibi-lo
-        if agora - evento['data'] < timedelta(hours=72):
-            st.write(f"**{evento['tipo']}** em {evento['provincia']}")
-            st.write(f"Descrição: {evento['descricao']}")
-            st.write(f"Data do evento: {evento['data'].strftime('%d/%m/%Y %H:%M')}")
-            st.write("----")
-
-# Função para resolver um evento
-def resolver_evento(id_evento, senha_admin):
-    if senha_admin == "admin123":  # Palavra-passe para resolver
-        for evento in eventos_reportados:
-            if evento['id'] == id_evento:
-                evento['resolvido'] = True
-                st.success(f"Evento {id_evento} resolvido com sucesso!")
-                break
-    else:
-        st.error("Senha incorreta! Não é possível resolver o evento.")
-
 # Dicionário de coordenadas das províncias de Angola
 provincas = {
     "Luanda": {"lat": -8.839, "lon": 13.234},
@@ -191,31 +153,4 @@ else:
         for dia, temp, descricao in previsao1:
             st.write(f"{dia}: {temp}°C - {descricao}")
     else:
-        st.write(f"Não foi possível obter a previsão para {provincia1}")
-
-    if previsao2:
-        st.subheader(f"Previsão de clima para os próximos 5 dias em {provincia2}")
-        for dia, temp, descricao in previsao2:
-            st.write(f"{dia}: {temp}°C - {descricao}")
-    else:
-        st.write(f"Não foi possível obter a previsão para {provincia2}")
-
-    # Criar o mapa com a rota entre as províncias
-    m = criar_mapa(lat1, lon1, lat2, lon2, provincia1, provincia2)
-
-    # Exibir o mapa no Streamlit
-    st.subheader("Rota entre as províncias:")
-    st.components.v1.html(m._repr_html_(), height=500)
-
-    # Reportar eventos
-    st.sidebar.title("Reportar Evento")
-    tipo_evento = st.sidebar.selectbox("Tipo de evento", ["Acidente", "Buraco", "Congestionamento"])
-    provincia_evento = st.sidebar.selectbox("Província", list(provincas.keys()))
-    descricao_evento = st.sidebar.text_area("Descrição do evento")
-    if st.sidebar.button("Reportar"):
-        reportar_evento(tipo_evento, provincia_evento, descricao_evento)
-
-    # Mostrar eventos não resolvidos
-    st.sidebar.title("Eventos Reportados")
-    exibir_eventos()
-
+        st.write(f"Não foi possível obter a previsão para {
