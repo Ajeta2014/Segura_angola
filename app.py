@@ -66,8 +66,9 @@ def criar_mapa(lat1, lon1, lat2, lon2, provincia1, provincia2):
     folium.PolyLine([(lat1, lon1), (lat2, lon2)], color="green", weight=2.5, opacity=1).add_to(m)
     return m
 
-# Simulação de um banco de dados para eventos
-eventos_reportados = []
+# Simulação de um banco de dados para eventos (utilizando session_state)
+if 'eventos_reportados' not in st.session_state:
+    st.session_state.eventos_reportados = []
 
 # Função para reportar um evento
 def reportar_evento(tipo, provincia, descricao):
@@ -79,12 +80,12 @@ def reportar_evento(tipo, provincia, descricao):
         'data': datetime.now(),
         'resolvido': False,
     }
-    eventos_reportados.append(evento)
+    st.session_state.eventos_reportados.append(evento)
     st.success(f"Evento {tipo} reportado com sucesso!")
 
 # Função para exibir eventos
 def exibir_eventos():
-    for evento in eventos_reportados:
+    for evento in st.session_state.eventos_reportados:
         if not evento['resolvido']:
             st.write(f"**{evento['tipo']}** em {evento['provincia']}")
             st.write(f"Descrição: {evento['descricao']}")
@@ -94,7 +95,7 @@ def exibir_eventos():
 # Função para resolver um evento
 def resolver_evento(id_evento, senha_admin):
     if senha_admin == "admin123":  # Palavra-passe para resolver
-        for evento in eventos_reportados:
+        for evento in st.session_state.eventos_reportados:
             if evento['id'] == id_evento:
                 evento['resolvido'] = True
                 st.success(f"Evento {id_evento} resolvido com sucesso!")
@@ -104,9 +105,8 @@ def resolver_evento(id_evento, senha_admin):
 
 # Remover eventos expirados (após 72 horas)
 def remover_eventos_expirados():
-    global eventos_reportados
     agora = datetime.now()
-    eventos_reportados = [evento for evento in eventos_reportados if agora - evento['data'] < timedelta(hours=72)]
+    st.session_state.eventos_reportados = [evento for evento in st.session_state.eventos_reportados if agora - evento['data'] < timedelta(hours=72)]
 
 # Dicionário de coordenadas das províncias de Angola
 provincas = {
@@ -159,7 +159,7 @@ else:
     tempo_estimado = distancia / 80
     horas = int(tempo_estimado)
     minutos = int((tempo_estimado - horas) * 60)
-    st.write(f"Tempo estimado de viagem: {horas} horas e {minutos} minutos.")
+        st.write(f"Tempo estimado de viagem: {horas} horas e {minutos} minutos.")
 
     # Obter as condições climáticas para as províncias
     clima1 = obter_clima(provincia1)
@@ -178,7 +178,7 @@ else:
 
     if clima2:
         st.subheader(f"Clima atual em {provincia2}")
-        st.write(f"Temperatura: {clima2[0]}°C")
+        st.write(f"Temperatura: {clma2[0]}°C")
         st.write(f"Clima: {clima2[1]}")
         st.write(f"Umidade: {clima2[2]}%")
         st.write(f"Velocidade do vento: {clima2[3]} m/s")
@@ -211,18 +211,39 @@ else:
     st.subheader("Rota entre as províncias:")
     st.components.v1.html(m._repr_html_(), height=500)
 
-    # Reportar eventos
-    st.sidebar.title("Reportar Evento")
-    tipo_evento = st.sidebar.selectbox("Tipo de evento", ["Acidente", "Buraco", "Congestionamento"])
-    provincia_evento = st.sidebar.selectbox("Província", list(provincas.keys()))
-    descricao_evento = st.sidebar.text_area("Descrição do evento")
-    if st.sidebar.button("Reportar"):
-        reportar_evento(tipo_evento, provincia_evento, descricao_evento)
+# **Gerenciamento de eventos de tráfego e clima**
 
-    # Mostrar eventos não resolvidos
-    st.sidebar.title("Eventos Reportados")
-    exibir_eventos()
+st.sidebar.title("Reportar evento")
+evento_tipo = st.sidebar.selectbox("Tipo de evento", ["Acidente", "Buraco", "Congestionamento"])
+evento_provincia = st.sidebar.selectbox("Província", list(provincas.keys()))
+evento_descricao = st.sidebar.text_area("Descrição do evento")
 
-    # Remover eventos expirados
-    remover_eventos_expirados()
+# Reportar o evento
+if st.sidebar.button("Reportar evento"):
+    if evento_descricao.strip() != "":
+        reportar_evento(evento_tipo, evento_provincia, evento_descricao)
+    else:
+        st.sidebar.error("Por favor, insira uma descrição do evento!")
+
+# Exibir eventos reportados
+st.sidebar.subheader("Eventos Reportados")
+exibir_eventos()
+
+# **Área do Administrador**
+
+senha_admin = st.sidebar.text_input("Senha do Administrador", type="password")
+
+# Resolução de eventos
+if senha_admin == "admin123":  # Senha para acesso do administrador
+    st.sidebar.subheader("Resolução de Evento")
+    id_evento_resolver = st.sidebar.number_input("ID do Evento para resolver", min_value=1000, max_value=9999, step=1)
+    if st.sidebar.button("Resolver evento"):
+        resolver_evento(id_evento_resolver, senha_admin)
+else:
+    st.sidebar.write("Digite a senha de administrador para resolver eventos.")
+
+# Remover eventos expirados após 72 horas
+remover_eventos_expirados()
+
+
 
