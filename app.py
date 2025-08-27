@@ -2,8 +2,7 @@ import streamlit as st
 import math
 import requests
 import folium
-from datetime import datetime, timedelta
-import random
+import matplotlib.pyplot as plt
 
 # Função de Haversine para calcular a distância em quilômetros
 def haversine(lat1, lon1, lat2, lon2):
@@ -20,7 +19,7 @@ def haversine(lat1, lon1, lat2, lon2):
     return R * c
 
 # Função para pegar clima da API OpenWeatherMap
-@st.cache_data
+@st.cache_data  # Usando o novo caching para dados
 def obter_clima(provincia):
     api_key = "eca1cf11f4133927c8483a28e4ae7a6d"  # Substitua com a sua chave da OpenWeatherMap
     url = f"http://api.openweathermap.org/data/2.5/weather?q={provincia},AO&appid={api_key}&units=metric"
@@ -37,13 +36,13 @@ def obter_clima(provincia):
     return temperatura, clima, umidade, vento, clima_icon
 
 # Função para obter previsão de clima para os próximos dias
-@st.cache_data
+@st.cache_data  # Cache da previsão para não fazer chamadas repetitivas
 def obter_previsao(provincia):
     api_key = "eca1cf11f4133927c8483a28e4ae7a6d"
     url = f"http://api.openweathermap.org/data/2.5/forecast?q={provincia},AO&appid={api_key}&units=metric"
     response = requests.get(url)
     data = response.json()
-
+    
     # Verificando se a chave 'list' existe na resposta antes de tentar acessar
     if 'list' not in data:
         return None
@@ -58,55 +57,13 @@ def obter_previsao(provincia):
     return previsao
 
 # Função para criar o mapa interativo
-@st.cache_data
+@st.cache_data  # Cache para o mapa
 def criar_mapa(lat1, lon1, lat2, lon2, provincia1, provincia2):
     m = folium.Map(location=[lat1, lon1], zoom_start=6)
     folium.Marker([lat1, lon1], popup=provincia1, icon=folium.Icon(color='blue')).add_to(m)
     folium.Marker([lat2, lon2], popup=provincia2, icon=folium.Icon(color='red')).add_to(m)
     folium.PolyLine([(lat1, lon1), (lat2, lon2)], color="green", weight=2.5, opacity=1).add_to(m)
     return m
-
-# Simulação de um banco de dados para eventos (utilizando session_state)
-if 'eventos_reportados' not in st.session_state:
-    st.session_state.eventos_reportados = []
-
-# Função para reportar um evento
-def reportar_evento(tipo, provincia, descricao):
-    evento = {
-        'id': random.randint(1000, 9999),
-        'tipo': tipo,
-        'provincia': provincia,
-        'descricao': descricao,
-        'data': datetime.now(),
-        'resolvido': False,
-    }
-    st.session_state.eventos_reportados.append(evento)
-    st.success(f"Evento {tipo} reportado com sucesso!")
-
-# Função para exibir eventos
-def exibir_eventos():
-    for evento in st.session_state.eventos_reportados:
-        if not evento['resolvido']:
-            st.write(f"**{evento['tipo']}** em {evento['provincia']}")
-            st.write(f"Descrição: {evento['descricao']}")
-            st.write(f"Data do evento: {evento['data'].strftime('%d/%m/%Y %H:%M')}")
-            st.write("----")
-
-# Função para resolver um evento
-def resolver_evento(id_evento, senha_admin):
-    if senha_admin == "admin123":  # Palavra-passe para resolver
-        for evento in st.session_state.eventos_reportados:
-            if evento['id'] == id_evento:
-                evento['resolvido'] = True
-                st.success(f"Evento {id_evento} resolvido com sucesso!")
-                break
-    else:
-        st.error("Senha incorreta! Não é possível resolver o evento.")
-
-# Remover eventos expirados (após 72 horas)
-def remover_eventos_expirados():
-    agora = datetime.now()
-    st.session_state.eventos_reportados = [evento for evento in st.session_state.eventos_reportados if agora - evento['data'] < timedelta(hours=72)]
 
 # Dicionário de coordenadas das províncias de Angola
 provincas = {
@@ -159,7 +116,7 @@ else:
     tempo_estimado = distancia / 80
     horas = int(tempo_estimado)
     minutos = int((tempo_estimado - horas) * 60)
-        st.write(f"Tempo estimado de viagem: {horas} horas e {minutos} minutos.")
+    st.write(f"Tempo estimado de viagem: {horas} horas e {minutos} minutos.")
 
     # Obter as condições climáticas para as províncias
     clima1 = obter_clima(provincia1)
@@ -178,7 +135,7 @@ else:
 
     if clima2:
         st.subheader(f"Clima atual em {provincia2}")
-        st.write(f"Temperatura: {clma2[0]}°C")
+        st.write(f"Temperatura: {clima2[0]}°C")
         st.write(f"Clima: {clima2[1]}")
         st.write(f"Umidade: {clima2[2]}%")
         st.write(f"Velocidade do vento: {clima2[3]} m/s")
@@ -244,6 +201,4 @@ else:
 
 # Remover eventos expirados após 72 horas
 remover_eventos_expirados()
-
-
 
