@@ -84,8 +84,10 @@ def reportar_evento(tipo, provincia, descricao):
 
 # Função para exibir eventos
 def exibir_eventos():
+    agora = datetime.now()
     for evento in eventos_reportados:
-        if not evento['resolvido']:
+        # Verificar se o evento não expirou antes de exibi-lo
+        if agora - evento['data'] < timedelta(hours=72):
             st.write(f"**{evento['tipo']}** em {evento['provincia']}")
             st.write(f"Descrição: {evento['descricao']}")
             st.write(f"Data do evento: {evento['data'].strftime('%d/%m/%Y %H:%M')}")
@@ -101,12 +103,6 @@ def resolver_evento(id_evento, senha_admin):
                 break
     else:
         st.error("Senha incorreta! Não é possível resolver o evento.")
-
-# Remover eventos expirados (após 72 horas)
-def remover_eventos_expirados():
-    global eventos_reportados
-    agora = datetime.now()
-    eventos_reportados = [evento for evento in eventos_reportados if agora - evento['data'] < timedelta(hours=72)]
 
 # Dicionário de coordenadas das províncias de Angola
 provincas = {
@@ -222,7 +218,4 @@ else:
     # Mostrar eventos não resolvidos
     st.sidebar.title("Eventos Reportados")
     exibir_eventos()
-
-    # Remover eventos expirados
-    remover_eventos_expirados()
 
