@@ -8,3 +8,4 @@ altair
 plotly
 scikit-learn
 numpy
+streamlit-folium
