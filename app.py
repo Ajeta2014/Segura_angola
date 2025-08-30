@@ -18,7 +18,7 @@ def haversine(lat1, lon1, lat2, lon2):
 # Função para obter clima atual
 @st.cache_data
 def obter_clima(provincia):
-    api_key = "sua_api_key_openweathermap"
+    api_key = "eca1cf11f4133927c8483a28e4ae7a6d"
     url = f"http://api.openweathermap.org/data/2.5/weather?q={provincia},AO&appid={api_key}&units=metric"
     data = requests.get(url).json()
     if data.get("cod") != 200: return None
@@ -32,7 +32,7 @@ def obter_clima(provincia):
 # Função para obter previsão de clima
 @st.cache_data
 def obter_previsao(provincia):
-    api_key = "sua_api_key_openweathermap"
+    api_key = "eca1cf11f4133927c8483a28e4ae7a6d"
     url = f"http://api.openweathermap.org/data/2.5/forecast?q={provincia},AO&appid={api_key}&units=metric"
     data = requests.get(url).json()
     if 'list' not in data: return None
@@ -51,7 +51,7 @@ def criar_mapa(lat1, lon1, lat2, lon2, provincia1, provincia2):
 # Função para obter rotas alternativas
 @st.cache_data
 def obter_rotas_alternativas(lat1, lon1, lat2, lon2):
-    client = openrouteservice.Client(key='sua_api_key_openrouteservice')
+    client = openrouteservice.Client(key="eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6Ijg3ZjQxNjgwZjJhNjQ5NzhiZjY5MzBlYzhmOTYzNTQ2IiwiaCI6Im11cm11cjY0In0=")
     coords = [(lon1, lat1), (lon2, lat2)]
     routes = client.directions(
         coordinates=coords,
