@@ -5,3 +5,6 @@ folium
 geopy
 pandas
 altair
+plotly
+scikit-learn
+numpy
