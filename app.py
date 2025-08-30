@@ -4,6 +4,8 @@ import requests
 import folium
 import pandas as pd
 import altair as alt
+import openrouteservice
+from openrouteservice import convert
 
 # Função Haversine para calcular distância em km
 def haversine(lat1, lon1, lat2, lon2):
@@ -16,7 +18,7 @@ def haversine(lat1, lon1, lat2, lon2):
 # Função para obter clima atual
 @st.cache_data
 def obter_clima(provincia):
-    api_key = "eca1cf11f4133927c8483a28e4ae7a6d"
+    api_key = "sua_api_key_openweathermap"
     url = f"http://api.openweathermap.org/data/2.5/weather?q={provincia},AO&appid={api_key}&units=metric"
     data = requests.get(url).json()
     if data.get("cod") != 200: return None
@@ -30,7 +32,7 @@ def obter_clima(provincia):
 # Função para obter previsão de clima
 @st.cache_data
 def obter_previsao(provincia):
-    api_key = "eca1cf11f4133927c8483a28e4ae7a6d"
+    api_key = "sua_api_key_openweathermap"
     url = f"http://api.openweathermap.org/data/2.5/forecast?q={provincia},AO&appid={api_key}&units=metric"
     data = requests.get(url).json()
     if 'list' not in data: return None
@@ -45,6 +47,19 @@ def criar_mapa(lat1, lon1, lat2, lon2, provincia1, provincia2):
     folium.Marker([lat2, lon2], popup=provincia2, icon=folium.Icon(color='red')).add_to(m)
     folium.PolyLine([(lat1, lon1), (lat2, lon2)], color="green", weight=2.5, opacity=1).add_to(m)
     return m
+
+# Função para obter rotas alternativas
+@st.cache_data
+def obter_rotas_alternativas(lat1, lon1, lat2, lon2):
+    client = openrouteservice.Client(key='sua_api_key_openrouteservice')
+    coords = [(lon1, lat1), (lon2, lat2)]
+    routes = client.directions(
+        coordinates=coords,
+        profile='driving-car',
+        format='geojson',
+        options={'avoid_features': ['tollways', 'ferries']}
+    )
+    return routes
 
 # Coordenadas das províncias de Angola
 provincas = {
@@ -87,7 +102,7 @@ else:
     # Distância e tempo estimado
     distancia = haversine(lat1, lon1, lat2, lon2)
     st.write(f"📏 Distância: {distancia:.2f} km")
-    tempo_estimado = distancia/80
+    tempo_estimado = distancia / 80
     st.write(f"⏱ Tempo estimado: {int(tempo_estimado)}h {int((tempo_estimado-int(tempo_estimado))*60)}min")
 
     # Estimativa de combustível
@@ -122,9 +137,14 @@ else:
             ).properties(title=f"Temperatura em {prov}")
             st.altair_chart(chart, use_container_width=True)
 
+    # Rotas alternativas
+    st.subheader("🛣️ Rotas alternativas")
+    rotas = obter_rotas_alternativas(lat1, lon1, lat2, lon2)
+    for i, route in enumerate(rotas['features']):
+        coords = convert.decode_polyline(route['geometry'])
+        folium.PolyLine(locations=coords, color='blue', weight=2.5, opacity=1).add_to(m)
+
     # Mapa com rota
     st.subheader("🗺 Rota entre províncias")
     m = criar_mapa(lat1, lon1, lat2, lon2, provincia1, provincia2)
     st.components.v1.html(m._repr_html_(), height=500)
-
-
