@@ -2,62 +2,42 @@ import streamlit as st
 import math
 import requests
 import folium
-from datetime import datetime, timedelta
-import random
+import pandas as pd
+import altair as alt
 
-# Função de Haversine para calcular a distância em quilômetros
+# Função Haversine para calcular distância em km
 def haversine(lat1, lon1, lat2, lon2):
-    R = 6371  # Raio da Terra em km
-    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])  # Convertendo de graus para radianos
+    R = 6371  # Raio da Terra
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+    dlat, dlon = lat2-lat1, lon2-lon1
+    a = math.sin(dlat/2)**2 + math.cos(lat1)*math.cos(lat2)*math.sin(dlon/2)**2
+    return R * 2*math.atan2(math.sqrt(a), math.sqrt(1-a))
 
-    dlat = lat2 - lat1
-    dlon = lon2 - lon1
-
-    a = math.sin(dlat / 2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2)**2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
-    # Distância em km
-    return R * c
-
-# Função para pegar clima da API OpenWeatherMap
+# Função para obter clima atual
 @st.cache_data
 def obter_clima(provincia):
-    api_key = "eca1cf11f4133927c8483a28e4ae7a6d"  # Substitua com a sua chave da OpenWeatherMap
+    api_key = "eca1cf11f4133927c8483a28e4ae7a6d"
     url = f"http://api.openweathermap.org/data/2.5/weather?q={provincia},AO&appid={api_key}&units=metric"
-    response = requests.get(url)
-    data = response.json()
-
-    if data.get("cod") != 200:
-        return None
+    data = requests.get(url).json()
+    if data.get("cod") != 200: return None
     clima = data['weather'][0]['description']
     temperatura = data['main']['temp']
     umidade = data['main']['humidity']
     vento = data['wind']['speed']
-    clima_icon = f"http://openweathermap.org/img/wn/{data['weather'][0]['icon']}.png"  # Icon do clima
+    clima_icon = f"http://openweathermap.org/img/wn/{data['weather'][0]['icon']}.png"
     return temperatura, clima, umidade, vento, clima_icon
 
-# Função para obter previsão de clima para os próximos dias
+# Função para obter previsão de clima
 @st.cache_data
 def obter_previsao(provincia):
     api_key = "eca1cf11f4133927c8483a28e4ae7a6d"
     url = f"http://api.openweathermap.org/data/2.5/forecast?q={provincia},AO&appid={api_key}&units=metric"
-    response = requests.get(url)
-    data = response.json()
-
-    # Verificando se a chave 'list' existe na resposta antes de tentar acessar
-    if 'list' not in data:
-        return None
-    
-    previsao = []
-    for item in data['list'][:5]:  # Pegando os próximos 5 dias
-        dia = item['dt_txt']
-        temperatura = item['main']['temp']
-        descricao = item['weather'][0]['description']
-        previsao.append((dia, temperatura, descricao))
-    
+    data = requests.get(url).json()
+    if 'list' not in data: return None
+    previsao = [(item['dt_txt'], item['main']['temp'], item['weather'][0]['description']) for item in data['list'][:5]]
     return previsao
 
-# Função para criar o mapa interativo
+# Função para criar mapa interativo
 @st.cache_data
 def criar_mapa(lat1, lon1, lat2, lon2, provincia1, provincia2):
     m = folium.Map(location=[lat1, lon1], zoom_start=6)
@@ -66,7 +46,7 @@ def criar_mapa(lat1, lon1, lat2, lon2, provincia1, provincia2):
     folium.PolyLine([(lat1, lon1), (lat2, lon2)], color="green", weight=2.5, opacity=1).add_to(m)
     return m
 
-# Dicionário de coordenadas das províncias de Angola
+# Coordenadas das províncias de Angola
 provincas = {
     "Luanda": {"lat": -8.839, "lon": 13.234},
     "Benguela": {"lat": -12.649, "lon": 13.421},
@@ -89,83 +69,62 @@ provincas = {
     "Ondjiva": {"lat": -17.130, "lon": 14.896},
 }
 
-# Início do aplicativo Streamlit
-st.title("Cálculo de Distâncias e Clima em Angola")
+st.title("🌍 Rota, Clima e Consumo de Combustível em Angola")
 
-# Escolha das províncias (usando colunas para tornar a interface mais organizada)
+# Seleção de províncias
 col1, col2 = st.columns(2)
 with col1:
     provincia1 = st.selectbox("Escolha a primeira província", list(provincas.keys()))
 with col2:
     provincia2 = st.selectbox("Escolha a segunda província", list(provincas.keys()))
 
-# Validação: Não pode escolher a mesma província
 if provincia1 == provincia2:
-    st.error("Por favor, selecione duas províncias diferentes.")
+    st.error("Selecione duas províncias diferentes!")
 else:
-    # Coordenadas das províncias
     lat1, lon1 = provincas[provincia1]["lat"], provincas[provincia1]["lon"]
     lat2, lon2 = provincas[provincia2]["lat"], provincas[provincia2]["lon"]
 
-    # Calcular distância
+    # Distância e tempo estimado
     distancia = haversine(lat1, lon1, lat2, lon2)
+    st.write(f"📏 Distância: {distancia:.2f} km")
+    tempo_estimado = distancia/80
+    st.write(f"⏱ Tempo estimado: {int(tempo_estimado)}h {int((tempo_estimado-int(tempo_estimado))*60)}min")
 
-    # Exibir distância
-    st.write(f"A distância entre {provincia1} e {provincia2} é {distancia:.2f} km.")
+    # Estimativa de combustível
+    consumo_medio = 12  # km/l
+    litros_necessarios = distancia / consumo_medio
+    st.info(f"⛽ Estimativa de combustível necessário: {litros_necessarios:.2f} litros")
 
-    # Estimativa de tempo de viagem (considerando uma velocidade média de 80 km/h)
-    tempo_estimado = distancia / 80
-    horas = int(tempo_estimado)
-    minutos = int((tempo_estimado - horas) * 60)
-    st.write(f"Tempo estimado de viagem: {horas} horas e {minutos} minutos.")
+    # Clima atual
+    clima1, clima2 = obter_clima(provincia1), obter_clima(provincia2)
+    for prov, clima in zip([provincia1, provincia2], [clima1, clima2]):
+        if clima:
+            st.subheader(f"Clima em {prov}")
+            st.write(f"🌡 Temperatura: {clima[0]}°C | 💧 Umidade: {clima[2]}% | 🌬 Vento: {clima[3]} m/s")
+            st.image(clima[4], width=50)
+        else:
+            st.write(f"Não foi possível obter clima para {prov}")
 
-    # Obter as condições climáticas para as províncias
-    clima1 = obter_clima(provincia1)
-    clima2 = obter_clima(provincia2)
+    # Alertas automáticos
+    alertas = []
+    for prov, clima in zip([provincia1, provincia2], [clima1, clima2]):
+        if clima and 'chuva' in clima[1].lower():
+            alertas.append(f"⚠️ Pode chover em {prov} hoje. Possíveis atrasos na rota!")
+    for alerta in alertas: st.warning(alerta)
 
-    # Exibir clima de cada província
-    if clima1:
-        st.subheader(f"Clima atual em {provincia1}")
-        st.write(f"Temperatura: {clima1[0]}°C")
-        st.write(f"Clima: {clima1[1]}")
-        st.write(f"Umidade: {clima1[2]}%")
-        st.write(f"Velocidade do vento: {clima1[3]} m/s")
-        st.image(clima1[4], width=50)  # Exibir o ícone do clima
-    else:
-        st.write(f"Não foi possível obter as condições climáticas para {provincia1}")
+    # Previsão 5 dias com gráfico
+    for prov, previsao in zip([provincia1, provincia2], [obter_previsao(provincia1), obter_previsao(provincia2)]):
+        if previsao:
+            st.subheader(f"Previsão 5 dias em {prov}")
+            df = pd.DataFrame(previsao, columns=['Dia','Temperatura','Descrição'])
+            chart = alt.Chart(df).mark_line(point=True).encode(
+                x='Dia', y='Temperatura', tooltip=['Dia','Temperatura','Descrição']
+            ).properties(title=f"Temperatura em {prov}")
+            st.altair_chart(chart, use_container_width=True)
 
-    if clima2:
-        st.subheader(f"Clima atual em {provincia2}")
-        st.write(f"Temperatura: {clima2[0]}°C")
-        st.write(f"Clima: {clima2[1]}")
-        st.write(f"Umidade: {clima2[2]}%")
-        st.write(f"Velocidade do vento: {clima2[3]} m/s")
-        st.image(clima2[4], width=50)  # Exibir o ícone do clima
-    else:
-        st.write(f"Não foi possível obter as condições climáticas para {provincia2}")
-
-    # Obter previsões para os próximos 5 dias
-    previsao1 = obter_previsao(provincia1)
-    previsao2 = obter_previsao(provincia2)
-
-    if previsao1:
-        st.subheader(f"Previsão de clima para os próximos 5 dias em {provincia1}")
-        for dia, temp, descricao in previsao1:
-            st.write(f"{dia}: {temp}°C - {descricao}")
-    else:
-        st.write(f"Não foi possível obter a previsão para {provincia1}")
-
-    if previsao2:
-        st.subheader(f"Previsão de clima para os próximos 5 dias em {provincia2}")
-        for dia, temp, descricao in previsao2:
-            st.write(f"{dia}: {temp}°C - {descricao}")
-    else:
-        st.write(f"Não foi possível obter a previsão para {provincia2}")
-
-    # Criar o mapa com a rota entre as províncias
+    # Mapa com rota
+    st.subheader("🗺 Rota entre províncias")
     m = criar_mapa(lat1, lon1, lat2, lon2, provincia1, provincia2)
-
-    # Exibir o mapa no Streamlit
-    st.subheader("Rota entre as províncias:")
     st.components.v1.html(m._repr_html_(), height=500)
+
 
