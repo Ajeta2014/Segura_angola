@@ -3,4 +3,5 @@ matplotlib
 requests
 folium
 geopy
-openrouteservice
+pandas
+altair
