@@ -1,4 +1,3 @@
-
 import streamlit as st
 import folium
 import requests
@@ -13,7 +12,6 @@ import altair as alt
 st.set_page_config(page_title="Rotas por Distância – Angola", layout="wide")
 st.title("🌍 Rotas por Distância, Clima e Consumo – Angola")
 
-# >>> Coloca tua chave do OpenWeather (ou usa variável de ambiente no Streamlit Cloud)
 OPENWEATHER_API_KEY = st.secrets.get("OPENWEATHER_API_KEY", "eca1cf11f4133927c8483a28e4ae7a6d")
 
 # =========================
@@ -45,7 +43,6 @@ provincas = {
 # UTILIDADES
 # ===========
 def haversine(lat1, lon1, lat2, lon2):
-    """Distância Haversine em km entre 2 pontos (lat/lon em graus)."""
     R = 6371.0
     lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
     dlat, dlon = lat2 - lat1, lon2 - lon1
@@ -57,7 +54,6 @@ def dist_provincias(p1, p2):
     return haversine(a["lat"], a["lon"], b["lat"], b["lon"])
 
 def rota_dist_total(rota):
-    """Soma das distâncias entre paragens consecutivas numa rota (lista de nomes de província)."""
     total = 0.0
     for i in range(len(rota) - 1):
         total += dist_provincias(rota[i], rota[i+1])
@@ -65,7 +61,6 @@ def rota_dist_total(rota):
 
 @st.cache_data(show_spinner=False)
 def obter_clima(provincia):
-    """Clima atual (OpenWeather) – retorna (temperatura, descrição, umidade, vento, ícone_url) ou None."""
     lat, lon = provincas[provincia]["lat"], provincas[provincia]["lon"]
     url = f"http://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}&units=metric&lang=pt_br"
     try:
@@ -83,15 +78,12 @@ def obter_clima(provincia):
 
 @st.cache_data(show_spinner=False)
 def obter_previsao(provincia, pontos=8):
-    """Previsão (OpenWeather 3h) – devolve até 'pontos' itens: (dt_txt, temp, desc)."""
     lat, lon = provincas[provincia]["lat"], provincas[provincia]["lon"]
     url = f"http://api.openweathermap.org/data/2.5/forecast?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}&units=metric&lang=pt_br"
     try:
         r = requests.get(url, timeout=10).json()
         if 'list' not in r: return None
-        previsao = []
-        for item in r['list'][:pontos]:
-            previsao.append((item['dt_txt'], item['main']['temp'], item['weather'][0]['description']))
+        previsao = [(item['dt_txt'], item['main']['temp'], item['weather'][0]['description']) for item in r['list'][:pontos]]
         return previsao
     except Exception:
         return None
@@ -106,186 +98,122 @@ def estimar_consumo(dist_km, consumo_km_por_l):
     return dist_km / max(consumo_km_por_l, 0.1)
 
 def melhores_rotas_por_distancia(origem, destino, k=3):
-    """
-    Gera até 3 rotas:
-      1) direta: [A, B]
-      2) melhor com 1 paragem: [A, X, B]
-      3) melhor com 2 paragens: [A, X, Y, B]
-    escolhidas pelo menor somatório de distâncias (Haversine).
-    """
     if origem == destino:
         return []
-
-    # 1) direta
     rotas = [[origem, destino]]
-
-    # 2) 1 paragem
-    candidatos_1 = []
-    for x in provincas.keys():
-        if x in (origem, destino): continue
-        cand = [origem, x, destino]
-        candidatos_1.append((rota_dist_total(cand), cand))
-    if candidatos_1:
-        candidatos_1.sort(key=lambda t: t[0])
-        rotas.append(candidatos_1[0][1])
-
-    # 3) 2 paragens
-    candidatos_2 = []
-    for x in provincas.keys():
-        if x in (origem, destino): continue
-        for y in provincas.keys():
-            if y in (origem, destino) or y == x: continue
-            cand = [origem, x, y, destino]
-            candidatos_2.append((rota_dist_total(cand), cand))
-    if candidatos_2:
-        candidatos_2.sort(key=lambda t: t[0])
-        # escolhe a melhor que não seja idêntica às anteriores (por segurança)
-        melhor2 = candidatos_2[0][1]
-        rotas.append(melhor2)
-
-    # Ordena por distância total e devolve top-k (sem duplicar)
-    uniq = []
-    seen = set()
-    for r in sorted(rotas, key=lambda rr: rota_dist_total(rr)):
-        tup = tuple(r)
+    candidatos_1 = [(rota_dist_total([origem, x, destino]), [origem, x, destino]) for x in provincas.keys() if x not in (origem,destino)]
+    if candidatos_1: rotas.append(sorted(candidatos_1,key=lambda t:t[0])[0][1])
+    candidatos_2 = [(rota_dist_total([origem,x,y,destino]), [origem,x,y,destino])
+                    for x in provincas.keys() if x not in (origem,destino)
+                    for y in provincas.keys() if y not in (origem,destino,x)]
+    if candidatos_2: rotas.append(sorted(candidatos_2,key=lambda t:t[0])[0][1])
+    uniq=[]
+    seen=set()
+    for r in sorted(rotas,key=lambda rr:rota_dist_total(rr)):
+        tup=tuple(r)
         if tup not in seen:
             uniq.append(r)
             seen.add(tup)
-        if len(uniq) >= k:
-            break
+        if len(uniq)>=k: break
     return uniq
 
 def desenhar_rota_no_mapa(mapa, rota, cor="blue"):
-    """Desenha a rota (lista de nomes de província) como polilinha entre os pontos."""
     pontos = [(provincas[p]["lat"], provincas[p]["lon"]) for p in rota]
     folium.PolyLine(pontos, color=cor, weight=4, opacity=0.9).add_to(mapa)
-    # Marcadores
     for i, p in enumerate(rota):
-        cor_m = "green" if i == 0 else ("red" if i == len(rota)-1 else "orange")
-        folium.Marker(
-            [provincas[p]["lat"], provincas[p]["lon"]],
-            popup=f"{'Origem' if i==0 else ('Destino' if i==len(rota)-1 else 'Paragem')} – {p}",
-            icon=folium.Icon(color=cor_m)
-        ).add_to(mapa)
+        cor_m = "green" if i==0 else ("red" if i==len(rota)-1 else "orange")
+        folium.Marker([provincas[p]["lat"], provincas[p]["lon"]],
+                      popup=f"{'Origem' if i==0 else ('Destino' if i==len(rota)-1 else 'Paragem')} – {p}",
+                      icon=folium.Icon(color=cor_m)).add_to(mapa)
 
 # =========
 # SIDEBAR
 # =========
 with st.sidebar:
     st.header("⚙️ Parâmetros")
-    velocidade_kmh = st.slider("Velocidade média (km/h)", 30, 120, 80, 5)
-    consumo_km_l = st.slider("Consumo do veículo (km/L)", 5, 20, 12, 1)
-    pontos_previsao = st.slider("Pontos de previsão (3h cada)", 4, 10, 6, 1)
-    mostrar_3_rotas = st.checkbox("Mostrar até 3 rotas (direta, 1 paragem, 2 paragens)", True)
+    velocidade_kmh = st.slider("Velocidade média (km/h)", 30,120,80,5)
+    consumo_km_l = st.slider("Consumo do veículo (km/L)",5,20,12,1)
+    pontos_previsao = st.slider("Pontos de previsão (3h cada)",4,10,6,1)
+    mostrar_3_rotas = st.checkbox("Mostrar até 3 rotas", True)
 
 # ======================
 # SELEÇÃO DE PROVÍNCIAS
 # ======================
 col1, col2 = st.columns(2)
-with col1:
-    origem = st.selectbox("Escolha a origem", list(provincas.keys()), index=0)
-with col2:
-    destino = st.selectbox("Escolha o destino", list(provincas.keys()), index=1)
-
-if origem == destino:
-    st.error("Por favor, selecione **províncias diferentes**.")
-    st.stop()
+with col1: origem = st.selectbox("Escolha a origem", list(provincas.keys()), index=0)
+with col2: destino = st.selectbox("Escolha o destino", list(provincas.keys()), index=1)
+if origem==destino: st.error("Selecione províncias diferentes."); st.stop()
 
 # ======================
 # CÁLCULO DE ROTAS
 # ======================
 rotas = melhores_rotas_por_distancia(origem, destino, k=3 if mostrar_3_rotas else 1)
 
-# TABELA RESUMO DAS ROTAS
-dados_rotas = []
-for idx, rota in enumerate(rotas, start=1):
-    d = rota_dist_total(rota)
-    h, m = estimar_tempo(d, velocidade_kmh)
-    litros = estimar_consumo(d, consumo_km_l)
-    dados_rotas.append({
-        "Rota": f"R{idx}: " + " → ".join(rota),
-        "Paragens": len(rota)-2 if len(rota) > 2 else 0,
-        "Distância (km)": round(d, 1),
-        "Tempo": f"{h}h {m}min",
-        "Consumo (L)": round(litros, 1),
-    })
-
+dados_rotas=[]
+for idx, rota in enumerate(rotas,start=1):
+    d=rota_dist_total(rota)
+    h,m=estimar_tempo(d,velocidade_kmh)
+    litros=estimar_consumo(d,consumo_km_l)
+    dados_rotas.append({"Rota":f"R{idx}: "+" → ".join(rota),
+                        "Paragens":len(rota)-2 if len(rota)>2 else 0,
+                        "Distância (km)":round(d,1),
+                        "Tempo":f"{h}h {m}min",
+                        "Consumo (L)":round(litros,1)})
 st.subheader("🛣️ Rotas sugeridas por distância total")
-df_rotas = pd.DataFrame(dados_rotas)
-st.dataframe(df_rotas, use_container_width=True)
+st.dataframe(pd.DataFrame(dados_rotas),use_container_width=True)
 
 # ======================
 # MAPA COM AS ROTAS
 # ======================
 st.subheader("🗺️ Mapa das rotas (baseado apenas em distância)")
-# Centro do mapa entre origem e destino
-lat_c = (provincas[origem]["lat"] + provincas[destino]["lat"]) / 2
-lon_c = (provincas[origem]["lon"] + provincas[destino]["lon"]) / 2
-m = folium.Map(location=[lat_c, lon_c], zoom_start=6, control_scale=True)
-
-cores = ["blue", "green", "purple"]
-for i, rota in enumerate(rotas):
-    desenhar_rota_no_mapa(m, rota, cor=cores[i % len(cores)])
-
-st.components.v1.html(m._repr_html_(), height=520)
+lat_c = (provincas[origem]["lat"]+provincas[destino]["lat"])/2
+lon_c = (provincas[origem]["lon"]+provincas[destino]["lon"])/2
+m=folium.Map(location=[lat_c, lon_c], zoom_start=6, control_scale=True)
+cores=["blue","green","purple"]
+for i, rota in enumerate(rotas): desenhar_rota_no_mapa(m,rota,cor=cores[i%len(cores)])
+st.components.v1.html(m._repr_html_(),height=520)
 
 # ======================
 # CLIMA + ALERTAS
 # ======================
 st.subheader("🌦️ Clima atual")
 cl1, cl2 = st.columns(2)
-for c, prov in zip([cl1, cl2], [origem, destino]):
+for c, prov in zip([cl1, cl2],[origem,destino]):
     with c:
-        clima = obter_clima(prov)
+        clima=obter_clima(prov)
         if clima:
             t, desc, um, ven, ic = clima
             st.markdown(f"**{prov}**")
-            st.image(ic, width=40)
+            st.image(ic,width=40)
             st.write(f"Temperatura: {t}°C  •  Clima: {desc}")
             st.write(f"Humidade: {um}%  •  Vento: {ven} m/s")
-        else:
-            st.warning(f"Não foi possível obter clima para **{prov}**.")
+        else: st.warning(f"Não foi possível obter clima para **{prov}**.")
 
-# Alertas simples baseados na previsão de chuva nas próximas horas
-alertas = []
-for prov in [origem, destino]:
-    prev = obter_previsao(prov, pontos=pontos_previsao)
+alertas=[]
+for prov in [origem,destino]:
+    prev=obter_previsao(prov,pontos=pontos_previsao)
     if prev:
-        vai_chover = any(("chuva" in d.lower()) or ("rain" in d.lower()) for _, _, d in prev)
-        if vai_chover:
-            alertas.append(f"⚠️ Chuva prevista em **{prov}**. Considere ajustar a velocidade/tempo.")
-if alertas:
-    for a in alertas:
-        st.warning(a)
+        vai_chover=any(("chuva" in d.lower()) or ("rain" in d.lower()) for _,_,d in prev)
+        if vai_chover: alertas.append(f"⚠️ Chuva prevista em **{prov}**. Ajuste sua rota/tempo.")
+for a in alertas: st.warning(a)
 
 # ======================
 # GRÁFICOS DE PREVISÃO
 # ======================
 st.subheader("📈 Previsão de temperatura (próximas horas)")
-gcol1, gcol2 = st.columns(2)
-for c, prov in zip([gcol1, gcol2], [origem, destino]):
-    prev = obter_previsao(prov, pontos=pontos_previsao)
+gcol1,gcol2 = st.columns(2)
+for c, prov in zip([gcol1,gcol2],[origem,destino]):
+    prev=obter_previsao(prov,pontos=pontos_previsao)
     if prev:
-        df = pd.DataFrame(prev, columns=["Dia", "Temperatura", "Descrição"])
-        chart = (
-            alt.Chart(df)
-            .mark_line(point=True)
-            .encode(
-                x=alt.X("Dia:N", title="Hora"),
-                y=alt.Y("Temperatura:Q", title="°C"),
-                tooltip=["Dia", "Temperatura", "Descrição"]
-            )
-            .properties(title=f"Temperatura em {prov}")
-        )
-        c.altair_chart(chart, use_container_width=True)
+        df=pd.DataFrame(prev,columns=["Dia","Temperatura","Descrição"])
+        chart=(alt.Chart(df)
+               .mark_line(point=True)
+               .encode(x=alt.X("Dia:N",title="Hora"),
+                       y=alt.Y("Temperatura:Q",title="°C"),
+                       tooltip=["Dia","Temperatura","Descrição"])
+               .properties(title=f"Temperatura em {prov}"))
+        c.altair_chart(chart,use_container_width=True)
     else:
         c.info(f"Sem previsão disponível para **{prov}** no momento.")
 
-# ======================
-# NOTAS FINAIS
-# ======================
-st.caption(
-    "Rotas são calculadas **apenas pela soma das distâncias Haversine** entre as paragens. "
-    "Isso NÃO representa condições reais de estrada/tráfego, mas permite otimizar itinerários por proximidade "
-    "sem depender de APIs externas de rotas."
-)
+st.caption("Rotas calculadas **apenas pela soma das distâncias Haversine** entre paragens. Não representa condições reais de estrada/tráfego.")
