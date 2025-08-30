@@ -133,13 +133,12 @@ def desenhar_rota_animada(mapa, rota, cor="cyan"):
     
     for i,p in enumerate(rota):
         if i==0:
-            # Partida: ícone de carro 🚗
+            # Partida: carro
             icon = folium.DivIcon(html=f"""<div style="font-size:24px;">🚗</div>""")
         elif i==len(rota)-1:
-            # Destino: bandeira 🏁
+            # Destino: bandeira
             icon = folium.DivIcon(html=f"""<div style="font-size:24px;">🏁</div>""")
         else:
-            # Paragem intermediária: marcador laranja
             icon = folium.Icon(color="orange", icon="map-marker", prefix="fa")
         
         folium.Marker(
@@ -194,3 +193,52 @@ m = folium.Map(location=[lat_c, lon_c], zoom_start=6, tiles="CartoDB Positron", 
 cores = ["cyan","magenta","orange"]
 for i,rota in enumerate(rotas): desenhar_rota_animada(m,rota,cor=cores[i%len(cores)])
 st_folium(m,width=800,height=520)
+
+# =========================
+# CLIMA
+# =========================
+st.subheader("🌦️ Clima atual")
+cl1,cl2=st.columns(2)
+for c,prov in zip([cl1,cl2],[origem,destino]):
+    with c:
+        clima=obter_clima(prov)
+        if clima:
+            t,d,um,ven,ic=clima
+            st.markdown(f"**{prov}**")
+            st.image(ic,width=40)
+            st.write(f"Temp: {t}°C • Clima: {d}")
+            st.write(f"Humidade: {um}% • Vento: {ven} m/s")
+        else:
+            st.warning(f"Sem clima para {prov}")
+
+# =========================
+# ALERTAS CHUVA
+# =========================
+alertas=[]
+for prov in [origem,destino]:
+    prev = obter_previsao(prov,pontos_prev)
+    if prev:
+        if any("chuva" in d.lower() or "rain" in d.lower() for _,_,d in prev):
+            alertas.append(f"⚠️ Chuva prevista em {prov}. Ajuste sua rota/tempo.")
+for a in alertas: st.warning(a)
+
+# =========================
+# GRÁFICOS
+# =========================
+st.subheader("📈 Previsão de temperatura")
+gcol1,gcol2=st.columns(2)
+for c,prov in zip([gcol1,gcol2],[origem,destino]):
+    prev=obter_previsao(prov,pontos_prev)
+    if prev:
+        df=pd.DataFrame(prev,columns=["Hora","Temperatura","Descrição"])
+        chart=(alt.Chart(df)
+               .mark_line(point=True)
+               .encode(x=alt.X("Hora:N",title="Hora"),
+                       y=alt.Y("Temperatura:Q",title="°C"),
+                       tooltip=["Hora","Temperatura","Descrição"])
+               .properties(title=f"Temperatura em {prov}"))
+        c.altair_chart(chart,use_container_width=True)
+    else:
+        c.info(f"Sem previsão disponível para {prov}")
+
+st.caption("Rotas calculadas apenas pela soma das distâncias Haversine. Não representa condições reais de estrada/tráfego.")
