@@ -11,7 +11,7 @@ from streamlit_folium import st_folium
 # =========================
 st.set_page_config(page_title="Rotas por Distância – Angola", layout="wide")
 
-# Fundo escuro usando CSS
+# Fundo escuro violeta
 st.markdown("""
 <style>
     .stApp {
@@ -127,16 +127,23 @@ def melhores_rotas(origem, destino, k=3):
         if len(uniq)>=k: break
     return uniq
 
-def desenhar_rota(mapa, rota, cor="blue"):
+def desenhar_rota(mapa, rota, cor="cyan"):
     pontos = [(provincas[p]["lat"], provincas[p]["lon"]) for p in rota]
-    folium.PolyLine(pontos, color=cor, weight=5, opacity=0.9).add_to(mapa)
+    folium.PolyLine(pontos, color=cor, weight=6, opacity=0.8).add_to(mapa)
     for i,p in enumerate(rota):
-        ic = "green" if i==0 else ("red" if i==len(rota)-1 else "orange")
-        emoji = "🚗" if i==0 else ("🏁" if i==len(rota)-1 else "⛽")
+        if i==0:
+            ic = "play"  # ícone partida
+            col = "green"
+        elif i==len(rota)-1:
+            ic = "flag"  # ícone destino
+            col = "red"
+        else:
+            ic = "map-marker"
+            col = "orange"
         folium.Marker(
             [provincas[p]["lat"], provincas[p]["lon"]],
-            popup=f"{emoji} {p}",
-            icon=folium.Icon(color=ic)
+            popup=f"{p}",
+            icon=folium.Icon(icon=ic, prefix="fa", color=col)
         ).add_to(mapa)
 
 # =========================
@@ -181,10 +188,10 @@ st.dataframe(pd.DataFrame(dados),use_container_width=True)
 st.subheader("🗺️ Mapa interativo das rotas")
 lat_c = (provincas[origem]["lat"]+provincas[destino]["lat"])/2
 lon_c = (provincas[origem]["lon"]+provincas[destino]["lon"])/2
-m = folium.Map(location=[lat_c, lon_c], zoom_start=6, tiles="CartoDB dark_matter", control_scale=True)
-cores = ["blue","green","purple"]
+m = folium.Map(location=[lat_c, lon_c], zoom_start=6, tiles="CartoDB Positron", control_scale=True)  # fundo claro
+cores = ["cyan","magenta","orange"]
 for i,rota in enumerate(rotas): desenhar_rota(m,rota,cor=cores[i%len(cores)])
-st_folium(m,width=700,height=520)
+st_folium(m,width=800,height=520)
 
 # =========================
 # CLIMA
